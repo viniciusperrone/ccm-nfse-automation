@@ -11,6 +11,8 @@ class BaseScraper(ABC):
         self.headless = headless
         self.slow_mo = slow_mo
 
+        self.ccm_number = None
+
         self.playwright = None
         self.browser = None
         self.page = None
