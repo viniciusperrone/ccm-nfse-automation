@@ -1,3 +1,4 @@
+
 CCM_BELO_HORIZONTE = "https://mobiliarioonline.pbh.gov.br/mobiliario-cadastro-publico/f/t/emiteficwebsel"
 CCM_RIO_DE_JANEIRO = "https://certec.apps.rio.gov.br/"
 CCM_BARUERI = "https://portal.barueri.sp.gov.br/empresa/minha-empresa/consulta-cadastral"
