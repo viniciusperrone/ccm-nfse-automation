@@ -1,27 +1,33 @@
+import argparse
 import asyncio
 
-from playwright.async_api import async_playwright
+from scrapers.belo_horizonte import BeloHorizonteScraper
 
-from config import CCM_BELO_HORIZONTE
+SCRAPERS = {
+    "belohorizonte": BeloHorizonteScraper,
+}
 
 
-async def main():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=False,
-            slow_mo=500
+async def main(city: str):
+    scraper_class = SCRAPERS.get(city.lower())
+
+    if not scraper_class:
+        raise ValueError(
+            f"Cidade {city} não suportada"
         )
 
-        page = await browser.new_page()
-
-        await page.goto(CCM_BELO_HORIZONTE)
-
-        await page.locator("#corpo\\:formulario\\:identificador").fill("28203865000174")
-
-        await page.pause()
-
-        await browser.close()
+    scraper = scraper_class()
+    await scraper.run()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--city",
+        required=True,
+        help="Nome da cidade"
+    )
+
+    args = parser.parse_args()
+
+    asyncio.run(main(args.city))
