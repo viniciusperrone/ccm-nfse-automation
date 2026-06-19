@@ -1,3 +1,5 @@
+import os
+
 from abc import ABC, abstractmethod
 
 from playwright.async_api import async_playwright
@@ -40,3 +42,13 @@ class BaseScraper(ABC):
             await self.scrape()
         finally:
             await self.close()
+
+
+    async def save_document(self, city: str, cnpj: str, download):
+        folder = os.path.join("documents", city.lower())
+
+        os.makedirs(folder, exist_ok=True)
+
+        file_path = os.path.join(folder, f"{cnpj}.pdf")
+
+        await download.save_as(file_path)
