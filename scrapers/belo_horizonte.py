@@ -4,15 +4,13 @@ from base.config import Config
 
 class BeloHorizonteScraper(BaseScraper):
     CITY = "BELO_HORIZONTE"
-    CNPJ = "28203865000174"
 
     async def select_company_and_capture_ccm(self):
         row = self.page.locator(
-            'tr:has-text("28203865000174"):has-text("ATIVA")'
+            f'tr:has-text("{self.cnpj}"):has-text("ATIVA")'
         )
 
         ccm = await row.locator("td:nth-child(2)").inner_text()
-
         self.ccm_number = ccm.strip()
 
         await row.locator('input[type="radio"]').click()
@@ -22,7 +20,7 @@ class BeloHorizonteScraper(BaseScraper):
 
         await self.page.locator(
             '[id="corpo:formulario:identificador"]'
-        ).fill("28203865000174")
+        ).fill(self.cnpj)
 
         await self.page.pause()
 
@@ -31,10 +29,6 @@ class BeloHorizonteScraper(BaseScraper):
         ).click()
 
         await self.select_company_and_capture_ccm()
-
-        await self.page.locator(
-            f'tr:has-text("28203865000174"):has-text("ATIVA") input[type="radio"]'
-        ).click()
 
         async with self.page.expect_download() as download_info:
             await self.page.locator(
@@ -45,7 +39,8 @@ class BeloHorizonteScraper(BaseScraper):
 
         await self.save_document(
             city=self.CITY,
-            cnpj=self.CNPJ,
+            cnpj=self.cnpj,
             download=download
         )
 
+        print("CCM capturado:", self.ccm_number)

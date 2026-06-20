@@ -1,17 +1,16 @@
 import os
-
 from abc import ABC, abstractmethod
-
 from playwright.async_api import async_playwright
 
 
 class BaseScraper(ABC):
 
-    def __init__(self, headless: bool = False, slow_mo: int = 500):
+    def __init__(self, headless: bool = False, slow_mo: int = 500, **kwargs):
         self.headless = headless
         self.slow_mo = slow_mo
 
         self.ccm_number = None
+        self.cnpj = kwargs.get("cnpj")
 
         self.playwright = None
         self.browser = None
@@ -45,7 +44,6 @@ class BaseScraper(ABC):
         finally:
             await self.close()
 
-
     async def save_document(self, city: str, cnpj: str, download):
         folder = os.path.join("documents", city.lower())
 
@@ -54,3 +52,5 @@ class BaseScraper(ABC):
         file_path = os.path.join(folder, f"{cnpj}.pdf")
 
         await download.save_as(file_path)
+
+        print(f"Arquivo salvo em: {file_path}")
