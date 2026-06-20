@@ -18,10 +18,14 @@ def normalize_cnpj(cnpj: str) -> str:
 def normalize_city(city: str):
     return city.lower().replace(" ", "")
 
-def build_data_per_city(input_path: str):
+def build_dataframe(input_path: str):
     df = pd.read_excel(input_path)
 
     df = df[["CNPJ", "CCM", "MUNICIPIO"]]
+
+    df["CNPJ"] = df["CNPJ"].apply(normalize_cnpj)
+
+    df["CCM"] = df["CCM"].astype("string")
 
     df["MUNICIPIO"] = (
         df["MUNICIPIO"]
@@ -30,53 +34,31 @@ def build_data_per_city(input_path: str):
         .str.replace(r"\s+", "", regex=True)
     )
 
-    data_per_city = defaultdict(list)
-
-    for row in df.itertuples(index=False):
-        data_per_city[row.MUNICIPIO].append({
-            "cnpj": str(row.CNPJ).strip(),
-            "ccm": row.CCM
-        })
-
-    return dict(data_per_city)
-
-def build_data_per_city(input_path: str):
-    df = pd.read_excel(input_path)
-
-    df = df[["CNPJ", "CCM", "MUNICIPIO"]]
-
-    df["MUNICIPIO"] = (
-        df["MUNICIPIO"]
-        .astype(str)
-        .str.lower()
-        .str.replace(r"\s+", "", regex=True)
-    )
-
-    data_per_city = defaultdict(list)
-
-    for row in df.itertuples(index=False):
-        data_per_city[row.MUNICIPIO].append({
-            "cnpj": normalize_cnpj(str(row.CNPJ)),
-            "ccm": row.CCM
-        })
-
-    return dict(data_per_city)
-
-
+    return df
 
 async def main(input_path: str, input_city: str):
-    scraper_class = SCRAPERS.get(input_city.lower()) if input_city else None
+    df = build_dataframe(input_path)
 
-    data_per_city = build_data_per_city(input_path)
+    scraper_class = SCRAPERS.get(input_city.lower())
 
-    if input_city:
-        city_key = normalize_city(input_city)
+    city_key = normalize_city(input_city)
 
-        city_data = data_per_city.get(city_key, [])
+    for idx, row in df.iterrows():
 
-        for item in city_data:
-            scraper = scraper_class(cnpj=item["cnpj"])
-            await scraper.run()
+        if row["MUNICIPIO"] != city_key:
+            continue
+
+        scraper = scraper_class(cnpj=row["CNPJ"])
+
+        await scraper.run()
+
+        df.at[idx, "CCM"] = scraper.ccm_number
+
+    output_path = input_path.replace(".xlsx", "_updated.xlsx")
+    df.to_excel(output_path, index=False)
+
+    print(f"Arquivo atualizado salvo em: {output_path}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
