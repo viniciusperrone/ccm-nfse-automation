@@ -15,6 +15,11 @@ class BeloHorizonteScraper(BaseScraper):
 
         await row.locator('input[type="radio"]').click()
 
+    async def has_no_results(self):
+        return await self.page.locator(
+            "text=Nenhum registro encontrado"
+        ).count() > 0
+
     async def scrape(self):
         await self.page.goto(Config.get_ccm(self.CITY))
 
@@ -27,6 +32,12 @@ class BeloHorizonteScraper(BaseScraper):
         await self.page.locator(
             '[id="corpo:formulario:botaoAcaoPesquisar"]'
         ).click()
+
+        await self.page.wait_for_timeout(1000)
+
+        if await self.has_no_results():
+            print(f"[WARN] Nenhum registro encontrado: {self.cnpj}")
+            return
 
         await self.select_company_and_capture_ccm()
 
