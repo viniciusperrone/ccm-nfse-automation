@@ -1,26 +1,16 @@
 import argparse
 import asyncio
-import re
 
 import pandas as pd
 
 from scrapers.belo_horizonte import BeloHorizonteScraper
+from scrapers.rio_de_janeiro import RioDeJaneiroScraper
+
 
 SCRAPERS = {
     "belohorizonte": BeloHorizonteScraper,
+    "riodejaneiro": RioDeJaneiroScraper
 }
-
-
-def normalize_cnpj(cnpj: str) -> str:
-    if pd.isna(cnpj):
-        return ""
-
-    cnpj = str(cnpj)
-
-    if cnpj.endswith(".0"):
-        cnpj = cnpj[:-2]
-
-    return re.sub(r"\D", "", cnpj)
 
 
 def normalize_city(city: str) -> str:
@@ -28,25 +18,21 @@ def normalize_city(city: str) -> str:
 
 
 def build_dataframe(input_path: str) -> pd.DataFrame:
-    df = pd.read_excel(input_path)
+    df = pd.read_excel(
+        input_path,
+        dtype={
+            "CNPJ": str,
+            "CCM": str,
+            "MUNICIPIO": str,
+        }
+    )
 
-    required_columns = ["CNPJ", "CCM", "MUNICIPIO"]
-
-    missing_columns = [
-        column
-        for column in required_columns
-        if column not in df.columns
-    ]
-
-    if missing_columns:
-        raise ValueError(
-            f"Colunas obrigatórias não encontradas: {missing_columns}"
-        )
-
-    df["CNPJ"] = df["CNPJ"].apply(normalize_cnpj)
-
-    # CCM é um identificador, não um número
-    df["CCM"] = df["CCM"].astype("string")
+    df["CNPJ"] = (
+        df["CNPJ"]
+        .astype(str)
+        .str.replace(r"\D", "", regex=True)
+        .str.zfill(14)
+    )
 
     df["MUNICIPIO"] = (
         df["MUNICIPIO"]
@@ -60,6 +46,8 @@ def build_dataframe(input_path: str) -> pd.DataFrame:
 
 async def main(input_path: str, input_city: str):
     df = build_dataframe(input_path)
+
+    print(repr(df.loc[7, "CNPJ"]))
 
     scraper_class = SCRAPERS.get(input_city.lower())
 
@@ -77,7 +65,6 @@ async def main(input_path: str, input_city: str):
         if row["MUNICIPIO"] != city_key:
             continue
 
-        # pula registros já preenchidos
         if pd.notna(row["CCM"]) and str(row["CCM"]).strip():
             continue
 
