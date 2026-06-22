@@ -5,11 +5,13 @@ import pandas as pd
 
 from scrapers.belo_horizonte import BeloHorizonteScraper
 from scrapers.rio_de_janeiro import RioDeJaneiroScraper
+from scrapers.porto_alegre import PortoAlegreScraper
 
 
 SCRAPERS = {
     "belohorizonte": BeloHorizonteScraper,
-    "riodejaneiro": RioDeJaneiroScraper
+    "riodejaneiro": RioDeJaneiroScraper,
+    "portoalegre": PortoAlegreScraper,
 }
 
 
@@ -46,8 +48,6 @@ def build_dataframe(input_path: str) -> pd.DataFrame:
 
 async def main(input_path: str, input_city: str):
     df = build_dataframe(input_path)
-
-    print(repr(df.loc[7, "CNPJ"]))
 
     scraper_class = SCRAPERS.get(input_city.lower())
 

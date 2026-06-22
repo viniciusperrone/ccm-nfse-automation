@@ -12,6 +12,7 @@ class Config:
         "PORTO_ALEGRE": os.getenv("CCM_PORTO_ALEGRE"),
         "NOVA_LIMA": os.getenv("CCM_NOVA_LIMA"),
     }
+    CAPTCHA_API_KEY = os.getenv("CAPTCHA_API_KEY")
 
     @classmethod
     def get_ccm(cls, city: str):
