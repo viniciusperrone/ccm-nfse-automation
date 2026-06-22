@@ -1,3 +1,4 @@
+import os
 import argparse
 import asyncio
 import logging
@@ -16,6 +17,8 @@ SCRAPERS = {
 }
 
 def setup_logger(log_file: str = "scrapper.log") -> logging.Logger:
+    os.makedirs("logs", exist_ok=True)
+
     logger = logging.getLogger("scrapper")
     logger.setLevel(logging.INFO)
 
@@ -26,7 +29,7 @@ def setup_logger(log_file: str = "scrapper.log") -> logging.Logger:
         "%(asctime)s | %(levelname)s | %(message)s"
     )
 
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler = logging.FileHandler(os.path.join("logs", log_file), encoding="utf-8")
     file_handler.setFormatter(formatter)
 
     console_handler = logging.StreamHandler()
