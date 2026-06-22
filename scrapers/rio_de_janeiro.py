@@ -1,7 +1,12 @@
 from base.scraper import BaseScraper
 from base.config import Config
 
-
+"""
+1. Mapear as colunas (CNPJ, MUNICIO, CCM, COD. VERIFICACAO)
+2. ATUALIZAR CCM
+3. Realizar BAIXA CADASTRO MUNICIPAL
+4. Realizar BAIXA NFS-e
+"""
 class RioDeJaneiroScraper(BaseScraper):
     CITY = "RIO_DE_JANEIRO"
 

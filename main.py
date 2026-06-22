@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import logging
 
 import pandas as pd
 
@@ -13,6 +14,28 @@ SCRAPERS = {
     "riodejaneiro": RioDeJaneiroScraper,
     "portoalegre": PortoAlegreScraper,
 }
+
+def setup_logger(log_file: str = "scrapper.log") -> logging.Logger:
+    logger = logging.getLogger("scrapper")
+    logger.setLevel(logging.INFO)
+
+    if logger.handlers:
+        return logger
+
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(message)s"
+    )
+
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return logger
 
 
 def normalize_city(city: str) -> str:
@@ -47,14 +70,18 @@ def build_dataframe(input_path: str) -> pd.DataFrame:
 
 
 async def main(input_path: str, input_city: str):
+    logger = setup_logger()
+
+    logger.info("Iniciando processo")
+    logger.info(f"Arquivo: {input_path}")
+
     df = build_dataframe(input_path)
 
     scraper_class = SCRAPERS.get(input_city.lower())
 
     if not scraper_class:
-        raise ValueError(
-            f"Cidade '{input_city}' não suportada"
-        )
+        logger.error(f"Cidade '{input_city}' não suportada")
+        raise ValueError(f"Cidade '{input_city}' não suportada")
 
     city_key = normalize_city(input_city)
 
@@ -68,37 +95,30 @@ async def main(input_path: str, input_city: str):
         if pd.notna(row["CCM"]) and str(row["CCM"]).strip():
             continue
 
-        print(
-            f"[{idx}] Consultando CNPJ {row['CNPJ']}"
-        )
+        logger.info(f"[{idx}] Consultando CNPJ {row['CNPJ']}")
 
-        scraper = scraper_class(
-            cnpj=row["CNPJ"]
-        )
+        scraper = scraper_class(cnpj=row["CNPJ"])
 
         try:
             await scraper.run()
 
             if scraper.ccm_number:
                 df.at[idx, "CCM"] = scraper.ccm_number
-
-                print(
-                    f"CCM encontrado: {scraper.ccm_number}"
-                )
-
                 total_processed += 1
 
+                logger.info(f"[{idx}] CCM encontrado: {scraper.ccm_number}")
+            else:
+                logger.warning(f"[{idx}] CCM não encontrado para {row['CNPJ']}")
+
         except Exception as exc:
-            print(
-                f"Erro ao processar "
-                f"CNPJ {row['CNPJ']}: {exc}"
+            logger.error(
+                f"[{idx}] Erro ao processar CNPJ {row['CNPJ']}: {exc}"
             )
 
     df.to_excel(input_path, index=False)
 
-    print(
-        f"Planilha atualizada com sucesso. "
-        f"Registros preenchidos: {total_processed}"
+    logger.info(
+        f"Finalizado. Registros preenchidos: {total_processed}"
     )
 
 
