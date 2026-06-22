@@ -2,6 +2,8 @@ import os
 from abc import ABC, abstractmethod
 from playwright.async_api import async_playwright
 
+from utils import get_logger
+
 
 class BaseScraper(ABC):
 
@@ -44,13 +46,17 @@ class BaseScraper(ABC):
         finally:
             await self.close()
 
-    async def save_document(self, city: str, cnpj: str, download):
-        folder = os.path.join("documents", city.lower())
+    async def save_document(self, city: str, filename: str, download):
+        os.makedirs("outputs", exist_ok=True)
+
+        folder = os.path.join("outputs", city.lower(), self.cnpj)
 
         os.makedirs(folder, exist_ok=True)
 
-        file_path = os.path.join(folder, f"{cnpj}.pdf")
+        file_path = os.path.join(folder, f"{filename}.pdf")
 
         await download.save_as(file_path)
 
-        print(f"Arquivo salvo em: {file_path}")
+        logger = get_logger("scrapers.base.save_document")
+
+        logger.info(f"Arquivo salvo em: {file_path}")

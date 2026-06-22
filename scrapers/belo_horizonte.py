@@ -55,6 +55,6 @@ class BeloHorizonteScraper(BaseScraper):
 
         await self.save_document(
             city=self.CITY,
-            cnpj=self.cnpj,
+            filename="CADASTRO_MUNICIPAL",
             download=download
         )

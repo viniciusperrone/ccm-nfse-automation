@@ -72,12 +72,15 @@ def build_dataframe(input_path: str) -> pd.DataFrame:
 
     return df
 
-def build_output_path(input_path: str) -> str:
+def build_output_path() -> str:
     os.makedirs("outputs", exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    return os.path.join("outputs", f"{input_path}_{timestamp}.xlsx")
+    return os.path.join(
+        "outputs",
+        f"janabril2026_amostra_5x5_{timestamp}.xlsx"
+    )
 
 async def main(input_path: str, input_city: str):
     logger = setup_logger()
@@ -140,9 +143,12 @@ async def main(input_path: str, input_city: str):
                     f"[{idx}] Erro ao processar CNPJ {row['CNPJ']}: {exc}"
                 )
 
-    output_path = build_output_path(input_path)
+    output_path = build_output_path()
 
-    df.to_excel(output_path, index=False)
+    df.to_excel(
+        output_path,
+        index=False
+    )
 
     logger.info(
         f"Finalizado. Registros preenchidos: {total_processed}"
