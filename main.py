@@ -80,11 +80,51 @@ async def main(input_path: str, input_city: str):
 
     df = build_dataframe(input_path)
 
-    scraper_class = SCRAPERS.get(input_city.lower())
+    selected_scrapers = (
+        {input_city.lower(): SCRAPERS[input_city.lower()]}
+        if input_city
+        else SCRAPERS
+    )
 
-    if not scraper_class:
+    if input_city and not selected_scrapers.get(input_city.lower()):
         logger.error(f"Cidade '{input_city}' não suportada")
         raise ValueError(f"Cidade '{input_city}' não suportada")
+
+    total_processed = 0
+    for city_key, scraper_class in selected_scrapers.items():
+
+        if not scraper_class:
+            continue
+
+        logger.info(f"Iniciando scrapper em {city_key}")
+
+        for idx, row in df.iterrows():
+
+            if row["MUNICIPIO"] != normalize_city(city_key):
+                continue
+
+            if pd.notna(row["CCM"]) and str(row["CCM"]).strip():
+                continue
+
+            logger.info(f"[{idx}] Consultando CNPJ {row['CNPJ']} ({city_key})")
+
+            scraper = scraper_class(cnpj=row["CNPJ"])
+
+            try:
+                await scraper.run()
+
+                if scraper.ccm_number:
+                    df.at[idx, "CCM"] = scraper.ccm_number
+                    total_processed += 1
+
+                    logger.info(f"[{idx}] CCM encontrado: {scraper.ccm_number}")
+                else:
+                    logger.warning(f"[{idx}] CCM não encontrado para {row['CNPJ']}")
+            except Exception as exc:
+                logger.error(
+                    f"[{idx}] Erro ao processar CNPJ {row['CNPJ']}: {exc}"
+                )
+
 
     city_key = normalize_city(input_city)
 
@@ -136,7 +176,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--city",
-        required=True,
+        required=False,
         help="Nome da cidade"
     )
 
