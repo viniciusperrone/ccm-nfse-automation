@@ -1,6 +1,11 @@
 from base.scraper import BaseScraper
 from base.config import Config
 
+from utils import get_logger
+
+
+logger = get_logger("scrapers.belo_horizonte")
+
 
 class BeloHorizonteScraper(BaseScraper):
     CITY = "BELO_HORIZONTE"
@@ -36,7 +41,7 @@ class BeloHorizonteScraper(BaseScraper):
         await self.page.wait_for_timeout(1000)
 
         if await self.has_no_results():
-            print(f"[WARN] Nenhum registro encontrado: {self.cnpj}")
+            logger.warning(f"Nenhum registro encontrado: {self.cnpj}")
             return
 
         await self.select_company_and_capture_ccm()
@@ -53,5 +58,3 @@ class BeloHorizonteScraper(BaseScraper):
             cnpj=self.cnpj,
             download=download
         )
-
-        print("CCM capturado:", self.ccm_number)
