@@ -1,6 +1,7 @@
 import os
 import traceback
 from abc import ABC, abstractmethod
+from urllib.parse import urlparse, parse_qs
 from typing import Optional
 
 from playwright.async_api import async_playwright
@@ -208,6 +209,31 @@ class BaseScraper(ABC):
             """,
             token
         )
+
+    async def get_recaptcha_v2_sitekey(self) -> str:
+        self.logger.info("Capturando sitekey")
+
+        iframe = self.page.locator(
+            'iframe[src*="recaptcha/api2/anchor"]'
+        ).first
+
+        src = await iframe.get_attribute("src")
+
+        if not src:
+            raise ValueError("reCAPTCHA iframe src not found")
+
+        query = parse_qs(
+            urlparse(src).query
+        )
+
+        sitekey = query.get("k", [None])[0]
+
+        if not sitekey:
+            raise ValueError("reCAPTCHA sitekey not found")
+
+        self.logger.info("Sitekey capturado")
+
+        return sitekey
 
     async def get_hcaptcha_sitekey(self) -> str:
         self.logger.info("Capturando sitekey")
