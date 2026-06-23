@@ -1,37 +1,90 @@
 import os
+import traceback
 from abc import ABC, abstractmethod
+from typing import Optional
 
-from playwright.async_api import async_playwright, Page
-from playwright_captcha import TwoCaptchaSolver, FrameworkType, CaptchaType
+from playwright.async_api import async_playwright
+
 from twocaptcha import AsyncTwoCaptcha
+from playwright_captcha import (
+    TwoCaptchaSolver,
+    FrameworkType,
+    CaptchaType,
+)
 
 from base.config import Config
 from utils import get_logger
 
 
 class BaseScraper(ABC):
+    """
+    Base padrão para todos os scrapers.
 
-    def __init__(self, headless: bool = False, slow_mo: int = 500, **kwargs):
-        self.headless = headless
-        self.slow_mo = slow_mo
+    Pipeline obrigatório:
+        1. scraper
+        3. download_ccm
+        4. download_nfse
+    """
 
-        self.ccm_number = None
-        self.access_key = kwargs.get("access_key")
-        self.cnpj = kwargs.get("cnpj")
+    def __init__(self, cnpj: str, access_key: Optional[str] = None):
+        self.cnpj = cnpj
+        self.access_key = access_key
+
+        self.ccm_number: Optional[str] = None
 
         self.playwright = None
         self.browser = None
         self.page = None
 
+        self.logger = get_logger(self.__class__.__name__)
+
+    async def run(self):
+        self.logger.info(
+            f"START scraper={self.__class__.__name__} cnpj={self.cnpj}"
+        )
+
+        try:
+            await self.start()
+
+            await self.before_scrape()
+            await self.scrape()
+
+            ccm_download = await self.download_ccm()
+            if ccm_download:
+                await self.save_document(
+                    city=getattr(self, "CITY", "UNKNOWN"),
+                    filename="CADASTRO_MUNICIPAL",
+                    download=ccm_download,
+                )
+            await self.download_nfse()
+
+            await self.after_scrape()
+
+            self.logger.info(
+                f"FINISHED scraper={self.__class__.__name__} cnpj={self.cnpj} ccm={self.ccm_number} nfse={self.access_key}"
+            )
+
+        except Exception as exc:
+            self.logger.error(
+                f"FAILED scraper={self.__class__.__name__} cnpj={self.cnpj} error={exc}"
+            )
+            self.logger.debug(traceback.format_exc())
+            raise
+
+        finally:
+            await self.close()
+
     async def start(self):
         self.playwright = await async_playwright().start()
 
         self.browser = await self.playwright.chromium.launch(
-            headless=self.headless,
-            slow_mo=self.slow_mo,
+            headless=False,
+            slow_mo=500,
         )
 
         self.page = await self.browser.new_page()
+
+        self.logger.info("Browser started")
 
     async def close(self):
         if self.browser:
@@ -40,24 +93,73 @@ class BaseScraper(ABC):
         if self.playwright:
             await self.playwright.stop()
 
+        self.logger.info("Browser closed")
+
+    async def waiting_human_interact(self):
+        self.logger.warning("Necessário interação humana")
+        await self.page.pause()
+
+    async def before_scrape(self):
+        pass
+
     @abstractmethod
     async def scrape(self):
         pass
 
-    async def run(self):
-        try:
-            await self.start()
-            await self.scrape()
-        finally:
-            await self.close()
+    async def after_scrape(self):
+        pass
+
+    @abstractmethod
+    async def download_ccm(self):
+        pass
+
+    async def download_nfse(self):
+        if self.access_key is None:
+            self.logger.warning("Cód. de acesso não fornecido")
+
+            return
+
+        self.logger.info(
+            f"Iniciando baixa da NFS-e."
+            f"Chave: {self.access_key}"
+        )
+
+        await self.page.goto(Config.NFSe_URL)
+
+        await self.page.wait_for_timeout(1000)
+
+        sitekey = await self.get_hcaptcha_sitekey()
+
+        await self.solve_hcaptcha(sitekey=sitekey)
+
+        await self.page.locator("#ChaveAcesso").fill(self.access_key)
+
+        await self.page.get_by_role("button", name="Consultar").click()
+
+        link = self.page.locator(
+            'a[href*="/ConsultaPublica/Download/DANFSe"]'
+        ).first
+
+        await link.wait_for(state="visible", timeout=30000)
+
+        async with self.page.expect_download() as download_info:
+            await link.click()
+
+        download = await download_info.value
+
+        await self.save_document(
+            city=getattr(self, "CITY", "UNKNOWN"),
+            filename="Nota",
+            download=download
+        )
 
     async def solve_recaptcha_v2(self, sitekey: str, url: str | None = None):
-        captcha_client = AsyncTwoCaptcha(Config.CAPTCHA_API_KEY)
+        client = AsyncTwoCaptcha(Config.CAPTCHA_API_KEY)
 
         async with TwoCaptchaSolver(
             framework=FrameworkType.PLAYWRIGHT,
             page=self.page,
-            async_two_captcha_client=captcha_client
+            async_two_captcha_client=client,
         ) as solver:
 
             return await solver.solve_captcha(
@@ -67,30 +169,10 @@ class BaseScraper(ABC):
                 url=url or self.page.url,
             )
 
-    async def get_hcaptcha_sitekey(self) -> str:
-        locator = self.page.locator(".h-captcha").first
+    async def solve_hcaptcha(self, sitekey: str, url: str | None = None):
+        client = AsyncTwoCaptcha(Config.CAPTCHA_API_KEY, recaptchaTimeout=600)
 
-        sitekey = await locator.get_attribute(
-            "data-sitekey"
-        )
-
-        if not sitekey:
-            raise ValueError(
-                "Sitekey do hCaptcha não encontrada."
-            )
-
-        return sitekey
-
-    async def solve_hcaptcha(
-            self,
-            sitekey: str,
-            url: str | None = None,
-    ):
-        captcha_client = AsyncTwoCaptcha(
-            Config.CAPTCHA_API_KEY
-        )
-
-        result = await captcha_client.hcaptcha(
+        result = await client.hcaptcha(
             sitekey=sitekey,
             url=url or self.page.url,
         )
@@ -120,63 +202,27 @@ class BaseScraper(ABC):
             token
         )
 
+    async def get_hcaptcha_sitekey(self) -> str:
+        self.logger.info("Capturando sitekey")
+        locator = self.page.locator(".h-captcha").first
+
+        sitekey = await locator.get_attribute("data-sitekey")
+
+        if not sitekey:
+            raise ValueError("hCaptcha sitekey not found")
+
+        self.logger.info("Sitekey capturado")
+
+        return sitekey
+
     async def save_document(self, city: str, filename: str, download):
         os.makedirs("outputs", exist_ok=True)
 
         folder = os.path.join("outputs", city.lower(), self.cnpj)
-
         os.makedirs(folder, exist_ok=True)
 
         file_path = os.path.join(folder, f"{filename}.pdf")
 
         await download.save_as(file_path)
 
-        logger = get_logger("scrapers.base.save_document")
-
-        logger.info(f"Arquivo salvo em: {file_path}")
-
-
-class NFSeScraper(BaseScraper):
-    """
-    Classe para consulta pública de NFS-e.
-
-    URL:
-    https://www.nfse.gov.br/consultapublica
-    """
-    URL = "https://www.nfse.gov.br/consultapublica"
-    ACCESS_KEY = "31062002228203865000174000000000002426013942565090"
-    DOCUMENT = "28203865000174"
-
-    async def scrape(self):
-        await self.page.goto(self.URL)
-
-        await self.page.wait_for_timeout(1000)
-
-        sitekey = await self.get_hcaptcha_sitekey()
-
-        await self.solve_hcaptcha(sitekey=sitekey)
-
-        await self.page.locator("#ChaveAcesso").fill(self.ACCESS_KEY)
-
-        await self.page.pause()
-
-        await self.page.get_by_role("button", name="Consultar").click()
-
-        link = self.page.locator(
-            'a[href*="/ConsultaPublica/Download/DANFSe"]'
-        ).first
-
-        await link.wait_for(state="visible", timeout=30000)
-
-        async with self.page.expect_download() as download_info:
-            await link.click()
-
-        download = await download_info.value
-
-        self.cnpj = self.DOCUMENT
-
-        await self.save_document(
-            city="BELO_HORIZONTE",
-            filename="Nota",
-            download=download
-        )
+        self.logger.info(f"Saved file: {file_path}")
