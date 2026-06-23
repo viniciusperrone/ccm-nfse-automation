@@ -1,26 +1,9 @@
 from base.scraper import BaseScraper
 from base.config import Config
 
-"""
-1. Mapear as colunas (CNPJ, MUNICIO, CCM, COD. VERIFICACAO)
-2. ATUALIZAR CCM
-3. Realizar BAIXA CADASTRO MUNICIPAL
-4. Realizar BAIXA NFS-e
-"""
+
 class RioDeJaneiroScraper(BaseScraper):
     CITY = "RIO_DE_JANEIRO"
-
-    async def select_company_and_capture_ccm(self):
-        ccm = await self.page.locator(
-            'strong:has-text("Inscrição Municipal:") + span'
-        ).inner_text()
-
-        self.ccm_number = ccm.strip()
-
-    async def has_no_results(self):
-        return await self.page.get_by_text(
-            "Nenhuma inscrição encontrada para o valor informado."
-        ).count() > 0
 
     async def scrape(self):
         await self.page.goto(Config.get_ccm(self.CITY))
@@ -51,16 +34,23 @@ class RioDeJaneiroScraper(BaseScraper):
 
         await self.select_company_and_capture_ccm()
 
+    async def select_company_and_capture_ccm(self):
+        ccm = await self.page.locator(
+            'strong:has-text("Inscrição Municipal:") + span'
+        ).inner_text()
+
+        self.ccm_number = ccm.strip()
+
+    async def has_no_results(self):
+        return await self.page.get_by_text(
+            "Nenhuma inscrição encontrada para o valor informado."
+        ).count() > 0
+
+    async def download_ccm(self):
         async with self.page.expect_download() as download_info:
             await self.page.get_by_role(
                 "button",
                 name="Imprimir"
             ).click()
 
-        download = await download_info.value
-
-        await self.save_document(
-            city=self.CITY,
-            cnpj=self.cnpj,
-            download=download
-        )
+        return await download_info.value
