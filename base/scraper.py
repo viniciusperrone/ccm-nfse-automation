@@ -17,14 +17,6 @@ from utils import get_logger
 
 
 class BaseScraper(ABC):
-    """
-    Base padrão para todos os scrapers.
-
-    Pipeline obrigatório:
-        1. scraper
-        3. download_ccm
-        4. download_nfse
-    """
 
     def __init__(self, cnpj: str, access_key: Optional[str] = None):
         self.cnpj = cnpj
@@ -136,6 +128,14 @@ class BaseScraper(ABC):
 
         await self.page.get_by_role("button", name="Consultar").click()
 
+        await self.page.wait_for_timeout(2000)
+
+        if await self.nfse_not_found():
+            self.logger.warning(
+                f"NFS-e not found | cnpj={self.cnpj} | access_key={self.access_key}"
+            )
+            return
+
         link = self.page.locator(
             'a[href*="/ConsultaPublica/Download/DANFSe"]'
         ).first
@@ -152,6 +152,13 @@ class BaseScraper(ABC):
             filename="Nota",
             download=download
         )
+
+    async def nfse_not_found(self) -> bool:
+        return await self.page.locator(
+            "div.alert-warning"
+        ).filter(
+            has_text="Nota Fiscal de Serviço inexistente"
+        ).count() > 0
 
     async def solve_recaptcha_v2(self, sitekey: str, url: str | None = None):
         client = AsyncTwoCaptcha(Config.CAPTCHA_API_KEY)

@@ -5,21 +5,6 @@ from base.config import Config
 class BeloHorizonteScraper(BaseScraper):
     CITY = "BELO_HORIZONTE"
 
-    async def has_no_results(self) -> bool:
-        return await self.page.locator(
-            "text=Nenhum registro encontrado"
-        ).count() > 0
-
-    async def select_company_and_capture_ccm(self):
-        row = self.page.locator(
-            f'tr:has-text("{self.cnpj}"):has-text("ATIVA")'
-        )
-
-        ccm = await row.locator("td:nth-child(2)").inner_text()
-        self.ccm_number = ccm.strip()
-
-        await row.locator('input[type="radio"]').click()
-
     async def scrape(self):
         await self.page.goto(Config.get_ccm(self.CITY))
 
@@ -40,6 +25,21 @@ class BeloHorizonteScraper(BaseScraper):
             return
 
         await self.select_company_and_capture_ccm()
+
+    async def has_no_results(self) -> bool:
+        return await self.page.locator(
+            "text=Nenhum registro encontrado"
+        ).count() > 0
+
+    async def select_company_and_capture_ccm(self):
+        row = self.page.locator(
+            f'tr:has-text("{self.cnpj}"):has-text("ATIVA")'
+        )
+
+        ccm = await row.locator("td:nth-child(2)").inner_text()
+        self.ccm_number = ccm.strip()
+
+        await row.locator('input[type="radio"]').click()
 
     async def download_ccm(self):
         async with self.page.expect_download() as download_info:

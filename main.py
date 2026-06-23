@@ -2,6 +2,7 @@ import os
 import argparse
 import asyncio
 import logging
+import traceback
 from datetime import datetime
 
 import pandas as pd
@@ -53,6 +54,7 @@ def build_dataframe(input_path: str) -> pd.DataFrame:
             "CNPJ": str,
             "CCM": str,
             "MUNICIPIO": str,
+            "COD.VERIFICACAO": str
         }
     )
 
@@ -114,7 +116,6 @@ async def main(input_path: str, input_city: str):
         logger.info(f"Iniciando scrapper em {city_key}")
 
         for idx, row in df.iterrows():
-
             if row["MUNICIPIO"] != normalize_city(city_key):
                 continue
 
@@ -126,7 +127,7 @@ async def main(input_path: str, input_city: str):
 
             logger.info(f"[{idx}] Consultando CNPJ {row['CNPJ']} ({city_key})")
 
-            scraper = scraper_class(cnpj=row["CNPJ"])
+            scraper = scraper_class(cnpj=row["CNPJ"], access_key=row["COD.VERIFICACAO"])
 
             try:
                 await scraper.run()
@@ -139,6 +140,7 @@ async def main(input_path: str, input_city: str):
                 else:
                     logger.warning(f"[{idx}] CCM não encontrado para {row['CNPJ']}")
             except Exception as exc:
+                print(traceback.format_exc())
                 logger.error(
                     f"[{idx}] Erro ao processar CNPJ {row['CNPJ']}: {exc}"
                 )
