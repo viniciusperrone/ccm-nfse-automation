@@ -13,6 +13,7 @@ class Config:
         "NOVA_LIMA": os.getenv("CCM_NOVA_LIMA"),
     }
     CAPTCHA_API_KEY = os.getenv("CAPTCHA_API_KEY")
+    NFSe_URL = os.getenv("NFSe_URL")
 
     @classmethod
     def get_ccm(cls, city: str):
