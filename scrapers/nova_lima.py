@@ -1,11 +1,11 @@
 from base.scraper import BaseScraper
 
-class BarueriScraper(BaseScraper):
-    CITY = "BARUERI"
+class NovaLimaScraper(BaseScraper):
+    CITY = "NOVA_LIMA"
 
     async def scrape(self):
         self.logger.warning(
-            "Consulta de CCM para Barueri indisponível"
+            "Consulta de CCM para Nova Lima indisponível"
         )
         return None
 

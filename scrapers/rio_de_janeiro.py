@@ -23,7 +23,7 @@ class RioDeJaneiroScraper(BaseScraper):
         await self.page.wait_for_timeout(1000)
 
         if await self.has_no_results():
-            print(f"[WARN] Nenhum registro encontrado: {self.cnpj}")
+            self.logger.warning(f"Nenhum registro encontrado: {self.cnpj}")
             return
 
         await self.page.locator(

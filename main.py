@@ -9,13 +9,17 @@ import pandas as pd
 
 from scrapers.belo_horizonte import BeloHorizonteScraper
 from scrapers.rio_de_janeiro import RioDeJaneiroScraper
+from scrapers.barueri import BarueriScraper
 from scrapers.porto_alegre import PortoAlegreScraper
+from scrapers.nova_lima import NovaLimaScraper
 
 
 SCRAPERS = {
     "belohorizonte": BeloHorizonteScraper,
     "riodejaneiro": RioDeJaneiroScraper,
+    "barueri": BarueriScraper,
     "portoalegre": PortoAlegreScraper,
+    "novalima": NovaLimaScraper,
 }
 
 def setup_logger(log_file: str = "scrapper.log") -> logging.Logger:
