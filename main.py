@@ -2,7 +2,6 @@ import os
 import argparse
 import asyncio
 import logging
-import traceback
 from datetime import datetime
 
 import pandas as pd
@@ -22,6 +21,7 @@ SCRAPERS = {
     "novalima": NovaLimaScraper,
 }
 
+
 def setup_logger(log_file: str = "scrapper.log") -> logging.Logger:
     os.makedirs("logs", exist_ok=True)
 
@@ -35,7 +35,10 @@ def setup_logger(log_file: str = "scrapper.log") -> logging.Logger:
         "%(asctime)s | %(levelname)s | %(message)s"
     )
 
-    file_handler = logging.FileHandler(os.path.join("logs", log_file), encoding="utf-8")
+    file_handler = logging.FileHandler(
+        os.path.join("logs", log_file),
+        encoding="utf-8"
+    )
     file_handler.setFormatter(formatter)
 
     console_handler = logging.StreamHandler()
@@ -51,6 +54,17 @@ def normalize_city(city: str) -> str:
     return city.lower().replace(" ", "")
 
 
+def parse_rows(rows: str | None) -> set[int] | None:
+    if not rows:
+        return None
+
+    return {
+        int(row.strip())
+        for row in rows.split(",")
+        if row.strip()
+    }
+
+
 def build_dataframe(input_path: str) -> pd.DataFrame:
     df = pd.read_excel(
         input_path,
@@ -58,7 +72,7 @@ def build_dataframe(input_path: str) -> pd.DataFrame:
             "CNPJ": str,
             "CCM": str,
             "MUNICIPIO": str,
-            "COD.VERIFICACAO": str
+            "COD.VERIFICACAO": str,
         }
     )
 
@@ -78,6 +92,7 @@ def build_dataframe(input_path: str) -> pd.DataFrame:
 
     return df
 
+
 def build_output_path() -> str:
     os.makedirs("outputs", exist_ok=True)
 
@@ -88,13 +103,25 @@ def build_output_path() -> str:
         f"janabril2026_amostra_5x5_{timestamp}.xlsx"
     )
 
-async def main(input_path: str, input_city: str):
+
+async def main(
+    input_path: str,
+    input_city: str | None,
+    rows: str | None,
+):
     logger = setup_logger()
 
     logger.info("Iniciando processo")
     logger.info(f"Arquivo: {input_path}")
 
     df = build_dataframe(input_path)
+
+    row_filter = parse_rows(rows)
+
+    if row_filter:
+        logger.info(
+            f"Processando apenas linhas: {sorted(row_filter)}"
+        )
 
     if input_city:
         city_key = normalize_city(input_city)
@@ -117,9 +144,13 @@ async def main(input_path: str, input_city: str):
     total_processed = 0
 
     for city_key, scraper_class in selected_scrapers.items():
-        logger.info(f"Iniciando scrapper em {city_key}")
+        logger.info(f"Iniciando scraper em {city_key}")
 
         for idx, row in df.iterrows():
+
+            if row_filter and idx not in row_filter:
+                continue
+
             if row["MUNICIPIO"] != normalize_city(city_key):
                 continue
 
@@ -129,9 +160,14 @@ async def main(input_path: str, input_city: str):
                 )
                 continue
 
-            logger.info(f"[{idx}] Consultando CNPJ {row['CNPJ']} ({city_key})")
+            logger.info(
+                f"[{idx}] Consultando CNPJ {row['CNPJ']} ({city_key})"
+            )
 
-            scraper = scraper_class(cnpj=row["CNPJ"], access_key=row["COD.VERIFICACAO"])
+            scraper = scraper_class(
+                cnpj=row["CNPJ"],
+                access_key=row["COD.VERIFICACAO"]
+            )
 
             try:
                 await scraper.run()
@@ -140,11 +176,15 @@ async def main(input_path: str, input_city: str):
                     df.at[idx, "CCM"] = scraper.ccm_number
                     total_processed += 1
 
-                    logger.info(f"[{idx}] CCM encontrado: {scraper.ccm_number}")
+                    logger.info(
+                        f"[{idx}] CCM encontrado: {scraper.ccm_number}"
+                    )
                 else:
-                    logger.warning(f"[{idx}] CCM não encontrado para {row['CNPJ']}")
+                    logger.warning(
+                        f"[{idx}] CCM não encontrado para {row['CNPJ']}"
+                    )
+
             except Exception as exc:
-                print(traceback.format_exc())
                 logger.error(
                     f"[{idx}] Erro ao processar CNPJ {row['CNPJ']}: {exc}"
                 )
@@ -159,6 +199,7 @@ async def main(input_path: str, input_city: str):
     logger.info(
         f"Finalizado. Registros preenchidos: {total_processed}"
     )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -175,11 +216,18 @@ if __name__ == "__main__":
         help="Nome da cidade"
     )
 
+    parser.add_argument(
+        "--row",
+        required=False,
+        help="Linha(s) da planilha. Ex: 10 ou 10,15,20"
+    )
+
     args = parser.parse_args()
 
     asyncio.run(
         main(
             input_path=args.input,
             input_city=args.city,
+            rows=args.row,
         )
     )
